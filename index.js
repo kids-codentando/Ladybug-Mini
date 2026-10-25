@@ -212,8 +212,59 @@ const createSuppressedLogger = (level = 'silent') => {
   return logger;
 };
 
+// ---------------------------------------------------------------- reconnect manager
+// Only ever one live socket. Creating a second socket with the same creds
+// makes WhatsApp answer with "Stream Errored (conflict)" and the bot then
+// loops forever, so every reconnect must dispose the previous socket first.
+let currentSock = null;
+let reconnectTimer = null;
+let reconnectAttempts = 0;
+let isStarting = false;
+
+function disposeSocket() {
+  const old = currentSock;
+  currentSock = null;
+  if (!old) return;
+  try {
+    old.ev.removeAllListeners('connection.update');
+    old.ev.removeAllListeners('creds.update');
+    old.ev.removeAllListeners('messages.upsert');
+  } catch (_) {}
+  try {
+    old.ws?.close();
+  } catch (_) {}
+  try {
+    old.end(undefined).catch(() => {});
+  } catch (_) {}
+}
+
+function scheduleReconnect(delayMs) {
+  if (reconnectTimer) return; // single-flight: never stack reconnects
+  const delay = Math.max(1000, delayMs || 0);
+  console.log(`🔁 Reconnecting in ${Math.round(delay / 1000)}s...`);
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    disposeSocket();
+    startBot().catch((e) => {
+      console.error('Reconnect failed:', e && e.message ? e.message : e);
+      scheduleReconnect(5000);
+    });
+  }, delay);
+}
+
 // Main connection function
 async function startBot() {
+  if (isStarting) return;
+  isStarting = true;
+  disposeSocket();
+  try {
+    await startBotInner();
+  } finally {
+    isStarting = false;
+  }
+}
+
+async function startBotInner() {
   const sessionFolder = `./${config.sessionName}`;
   const sessionFile = path.join(sessionFolder, 'creds.json');
 
@@ -270,6 +321,9 @@ async function startBot() {
 
   sock.rawGroupMetadata = sock.groupMetadata.bind(sock);
 
+  // Track the live socket so reconnects can dispose it first.
+  currentSock = sock;
+
   // Bind store to socket
   store.bind(sock.ev);
   sock.store = store;
@@ -287,9 +341,8 @@ async function startBot() {
   const watchdogInterval = setInterval(async () => {
     if (Date.now() - lastActivity > INACTIVITY_TIMEOUT && sock.ws.readyState === 1) { // WebSocket open but inactive
       console.log('⚠️ No activity detected. Forcing reconnect...');
-      await sock.end(undefined, undefined, { reason: 'inactive' });
       clearInterval(watchdogInterval);
-      setTimeout(() => startBot(), 5000); // Slightly longer delay
+      scheduleReconnect(5000);
     }
   }, 5 * 60 * 1000); // Every 5 min check
 
@@ -326,9 +379,35 @@ async function startBot() {
       }
 
       if (shouldReconnect) {
-        setTimeout(() => startBot(), 3000);
+        // A corrupt/invalid session can never recover by reconnecting — stop
+        // instead of burning CPU and spamming WhatsApp.
+        const fatal = /invalid private key|bad mac|invalid session|decryption failed|unsupported state/i.test(
+          String(errorMessage)
+        );
+        if (fatal) {
+          console.log('❌ Session is invalid or corrupt — not reconnecting.');
+          console.log('   Generate a fresh session and update this bot.');
+          process.exit(1);
+        }
+
+        reconnectAttempts += 1;
+        // 409 / "conflict" = another connection holds these creds. Back off
+        // hard so the stale session expires instead of hammering WhatsApp.
+        const isConflict =
+          statusCode === 409 || /conflict/i.test(String(errorMessage));
+        let delay;
+        if (isConflict) {
+          delay = Math.min(60000, 8000 * reconnectAttempts);
+          console.log(`⚠️ Session conflict detected — waiting ${Math.round(delay / 1000)}s before retry`);
+        } else {
+          delay = Math.min(30000, 3000 * reconnectAttempts);
+        }
+        scheduleReconnect(delay);
+      } else {
+        console.log('❌ Logged out — not reconnecting. Generate a new session.');
       }
     } else if (connection === 'open') {
+      reconnectAttempts = 0;
       console.log('\n✅ Bot connected successfully!');
       console.log(`📱 Bot Number: ${sock.user.id.split(':')[0]}`);
       console.log(`🤖 Bot Name: ${config.botName}`);
