@@ -126,6 +126,7 @@ When the bot starts:
 | Category | Example Commands |
 |----------|------------------|
 | General | `.menu` `.ladybug` `.ping` `.uptime` `.owner` `.sticker` |
+| Ladybug | `.sysinfo` `.speed` `.bug` `.spots` `.wings` `.crawl` `.swarm` `.garden` |
 | AI | `.ai` `.chatbot` `.magicstudio` |
 | Media | `.song` `.video` `.tiktok` `.instagram` `.facebook` `.twitter` |
 | Admin | `.antilink` `.antispam` `.welcome` `.promote` `.kick` `.mute` |
@@ -134,6 +135,25 @@ When the bot starts:
 | Economy | `.balance` `.daily` `.work` `.bet` `.shop` |
 
 > Type `.menu` in WhatsApp to see the complete, live command list.
+
+### 🐞 The Ladybug style
+
+Every core command speaks the same visual language: the same `╭───「 🐞 TITLE 」───╮`
+frame, the same icon set, the same `> 🐞 Ladybug Mini • Ntandomods` signature.
+The shared helpers live in `utils/ladybugTheme.js` — `header()`, `row()`, `bar()`,
+`bugBar()`, `latencyVerdict()` and `footer()` — so any new command can match the
+look in a few lines instead of hand-drawing box characters.
+
+- `.ping` — two-sample round trip, spots lit, and a plain-language verdict
+- `.uptime` — how long the bug has been awake, plus a health bar and mood
+- `.speed` — three samples with jitter and a stability reading
+- `.sysinfo` — platform, Node version, cores, load, RAM and heap
+- `.spots` — your permanent luck reading, seeded from your JID
+- `.bug` — 20 real, checkable ladybug facts
+- `.wings` — open the wings: prefix, command count, mode, memory
+- `.crawl` — race a ladybug across the garden
+- `.swarm` — how busy the group is today
+- `.garden` — a themed overview of the current group
 
 ---
 
