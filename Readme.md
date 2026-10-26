@@ -133,8 +133,31 @@ When the bot starts:
 | Owner | `.setbotname` `.setprefix` `.broadcast` `.restart` `.update` |
 | Games | `.tictactoe` `.coinflip` `.hangman` `.slots` `.rpg` |
 | Economy | `.balance` `.daily` `.work` `.bet` `.shop` |
+| Premium ⭐ | `.glitchtext` `.banner` `.matrixrain` `.font` `.base64` `.fastdl` `.fastmp3` |
 
 > Type `.menu` in WhatsApp to see the complete, live command list.
+
+### ⭐ Premium (paid) commands
+
+35 commands are gated behind a per-number licence. Any command module that sets
+`premium: true` is checked in `handler.js` before it runs — the bot owner always
+bypasses the gate so they can test.
+
+| Group | Commands |
+|-------|----------|
+| Text effects | `.glitch` `.corrupt` `.banner` `.matrix` `.vhs` `.typewriter` |
+| Text tools | `.font` `.mock` `.reverse` `.censor` `.clap` `.uwu` `.scramble` `.spoiler` `.repeat` `.count` `.password` `.uuid` |
+| Codecs | `.base64` `.unbase64` `.binary` `.unbinary` `.morse` `.unmorse` `.hex` `.unhex` `.hash` |
+| Fast downloaders | `.fastdl` `.fasttt` `.fastig` `.fastfb` `.fastx` `.fastyt` `.fastmp3` `.fastcache` |
+
+Owner commands: `.premium` (own status), `.premium add <jid> [days]` (`0` = lifetime),
+`.premium remove <jid>`, `.premium list`. Licences live in `data/premium.json` and
+self-prune when they expire.
+
+The downloaders sit on `utils/fastFetch.js`: a 15-minute LRU cache, in-flight
+de-duplication, and `Promise.any` provider racing with a hard 12-second cap, so a
+dead mirror costs milliseconds instead of the three minutes a sequential fallback
+would burn. Full details in [`PREMIUM.md`](./PREMIUM.md).
 
 ### 🐞 The Ladybug style
 
